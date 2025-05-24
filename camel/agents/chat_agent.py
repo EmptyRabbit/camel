@@ -188,6 +188,7 @@ class ChatAgent(BaseAgent):
         response_terminators: Optional[List[ResponseTerminator]] = None,
         scheduling_strategy: str = "round_robin",
         single_iteration: bool = False,
+        max_iteration: Optional[int] = None,
         agent_id: Optional[str] = None,
         stop_event: Optional[threading.Event] = None,
     ) -> None:
@@ -260,6 +261,7 @@ class ChatAgent(BaseAgent):
         self.terminated = False
         self.response_terminators = response_terminators or []
         self.single_iteration = single_iteration
+        self.max_iteration = max_iteration
         self.stop_event = stop_event
 
     def reset(self):
@@ -884,6 +886,7 @@ class ChatAgent(BaseAgent):
 
         # Initialize token usage tracker
         step_token_usage = self._create_token_usage_tracker()
+        iteration_count = 0
         while True:
             try:
                 openai_messages, num_tokens = self.memory.get_context()
@@ -910,6 +913,7 @@ class ChatAgent(BaseAgent):
                 )
 
             if tool_call_requests := response.tool_call_requests:
+                iteration_count += 1
                 # Process all tool calls
                 for tool_call_request in tool_call_requests:
                     if (
@@ -929,7 +933,10 @@ class ChatAgent(BaseAgent):
                 if external_tool_call_requests:
                     break
 
-                if self.single_iteration:
+                if (
+                    self.max_iteration
+                    and iteration_count >= self.max_iteration
+                ):
                     break
 
                 # If we're still here, continue the loop
